@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Report Agent — POS X-Report Generator</title>
-  <meta name="description" content="Automated POS X-Report to WhatsApp format converter with POS reconciliation."/>
+  <title>Report Agent — Daily Sales Report Generator</title>
+  <meta name="description" content="Automated daily sales report generator with reconciliation and WhatsApp format output."/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
@@ -323,7 +323,7 @@
   <div class="logo">📊</div>
   <div class="logo-text">
     <h1>Report Agent</h1>
-    <p>POS X-Report + Reconciliation → WhatsApp Format</p>
+    <p>Daily Sales + Reconciliation → WhatsApp Format</p>
   </div>
   <div class="badge offline" id="badge">
     <span class="dot"></span>
@@ -335,17 +335,17 @@
   <!-- ═══ LEFT: Uploads ═══ -->
   <div class="left-col">
 
-    <!-- Step 1: X-Report -->
+    <!-- Step 1: Sales Receipt -->
     <div class="card">
       <div class="card-title">
         <div class="step-num">1</div>
-        X-Report Receipt
+        Sales Receipt
       </div>
 
       <div class="upload-zone" id="receiptZone">
         <span class="uz-icon">🧾</span>
-        <h3>Drop X-Report Receipt Here</h3>
-        <p>This is the POS end-of-day receipt</p>
+        <h3>Drop Sales Receipt Here</h3>
+        <p>Daily end-of-day sales receipt image</p>
         <input type="file" id="receiptInput" accept="image/*"/>
       </div>
       <div class="zone-info">
@@ -359,13 +359,13 @@
     <div class="card">
       <div class="card-title">
         <div class="step-num">2</div>
-        Reconciliation Image(s)
-        <span style="font-size:10px;color:var(--txt3);font-weight:400;text-transform:none;margin-left:4px">(up to 5)</span>
+        Reconciliation
+        <span style="font-size:10px;color:var(--txt3);font-weight:400;text-transform:none;margin-left:4px">(up to 5 images)</span>
       </div>
       <div class="upload-zone recon-zone" id="reconZone">
         <span class="uz-icon">📋</span>
         <h3>Drop Reconciliation Image(s)</h3>
-        <p>POS Sales totals — duplicates auto-detected</p>
+        <p>Upload one or more — duplicates auto-detected</p>
         <input type="file" id="reconInput" accept="image/*" multiple/>
       </div>
       <div class="zone-info">
@@ -393,10 +393,10 @@
         <p style="font-size:12.5px;color:var(--txt2)">Processing images with Claude AI…</p>
         <div class="steps">
           <div class="step-item" id="s1">📤 Uploading images</div>
-          <div class="step-item" id="s2">🤖 Reading X-report receipt</div>
-          <div class="step-item" id="s3">📋 Extracting POS Sales from recon</div>
+          <div class="step-item" id="s2">🤖 Reading sales receipt</div>
+          <div class="step-item" id="s3">📋 Reading reconciliation</div>
           <div class="step-item" id="s4">🔍 Checking for duplicates</div>
-          <div class="step-item" id="s5">📱 Formatting WhatsApp report</div>
+          <div class="step-item" id="s5">📱 Formatting report</div>
         </div>
       </div>
     </div>
