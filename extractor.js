@@ -21,6 +21,7 @@ Return ONLY a valid JSON object — no markdown, no code blocks, no extra text.
   "total_orders": the total number of orders/transactions as a number,
   "cash_amount": the cash payment total as a number (0 if not present),
   "card_amount": the card payment total as a number (0 if not present) — THIS IS THE MARN POS SALES VALUE. Look for lines labeled 'Card', 'CARD', 'Credit Card', 'Visa', 'Mada', 'Card Sales', or any card/digital payment method. It may show a percentage like (100%) next to the amount. This is the most critical field to extract accurately,
+  "coupon": the coupon/voucher discount total as a number — look for lines labeled 'Coupon', 'Coupon Discount', 'Voucher', 'Promo Code', 'Coupon Value', or similar. This is the total value of all coupons/vouchers redeemed (0 if none),
   "net_sales": the net sales amount as a number,
   "sales_tax": the sales tax amount as a number,
   "total_discount": the total discount amount as a number (0 if none),
@@ -36,7 +37,8 @@ Rules:
 - All values must be numbers (not strings)
 - Use 0 for any field not visible or shown as 0/blank
 - Do NOT include currency symbols
-- card_amount is THE MOST IMPORTANT FIELD — it represents MARN POS Sales (card/digital payments only, not cash)`;
+- card_amount is THE MOST IMPORTANT FIELD — it represents MARN POS Sales (card/digital payments only, not cash)
+- coupon is the total value of coupons/vouchers redeemed, not a count`;
 
 // ─────────────────────────────────────────────
 // RECONCILIATION EXTRACTION
@@ -138,6 +140,7 @@ async function extractFromImage(imagePath) {
     total_orders:    totalOrders,
     cash_amount:     parseFloat(data.cash_amount)    || 0,
     card_amount:     cardAmount,
+    coupon:          parseFloat(data.coupon)         || 0,
     net_sales:       parseFloat(data.net_sales)      || 0,
     sales_tax:       parseFloat(data.sales_tax)      || 0,
     total_discount:  parseFloat(data.total_discount) || 0,

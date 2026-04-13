@@ -406,13 +406,15 @@
   <!-- ═══ RIGHT: Results ═══ -->
   <div class="right-col">
 
-    <div class="card">
-      <div class="card-title">📋 Extracted Data</div>
-      <div id="dataContent">
+    <!-- Summary card -->
+    <div class="card" id="summaryCard">
+      <div class="card-title">📊 Report Summary</div>
+      <div id="summaryContent">
         <div class="empty"><div class="ei">📄</div><p>Upload an X-report receipt and<br>reconciliation image(s) to begin</p></div>
       </div>
     </div>
 
+    <!-- WhatsApp report -->
     <div class="card">
       <div class="card-title">💬 WhatsApp Report</div>
       <div id="waContent">
@@ -439,7 +441,7 @@ const reconPreview   = document.getElementById('reconPreview');
 const reconCount     = document.getElementById('reconCount');
 const generateBtn    = document.getElementById('generateBtn');
 const loadingCard    = document.getElementById('loadingCard');
-const dataContent    = document.getElementById('dataContent');
+const summaryContent = document.getElementById('summaryContent');
 const waContent      = document.getElementById('waContent');
 const errorBox       = document.getElementById('errorBox');
 const badge          = document.getElementById('badge');
@@ -568,8 +570,7 @@ async function generateReport() {
     if (!result.success) throw new Error(result.error || 'Unknown error');
 
     currentResult = result;
-    renderMetrics(result);
-    renderData(result.summary);
+    renderSummary(result.summary);
     renderWhatsApp(result.whatsappReport, result.variance);
 
   } catch(err) {
@@ -579,13 +580,8 @@ async function generateReport() {
   }
 }
 
-// ── Metrics strip (top of data panel) ────────
-function renderMetrics(result) {
-  // no-op: metrics embedded inside renderData sections
-}
-
-// ── Render data table ─────────────────────────
-function renderData(summary) {
+// ── Render summary card ───────────────────────
+function renderSummary(summary) {
   if (!summary?.sections) return;
   let html = '<div class="fade">';
   summary.sections.forEach(sec => {
@@ -595,7 +591,7 @@ function renderData(summary) {
       let labelCls = 'row-label';
       if (item.calculated) cls += ' calc';
       if (item.bold)       cls += ' bold';
-      if (item.label && item.label.startsWith('  ↳')) labelCls += ' sub';
+      if (item.sub)        labelCls += ' sub';
 
       if (item.highlight) {
         if (item.label.toLowerCase().includes('variance')) {
@@ -617,7 +613,7 @@ function renderData(summary) {
     html += '</div>';
   });
   html += '</div>';
-  dataContent.innerHTML = html;
+  summaryContent.innerHTML = html;
 }
 
 // ── Render WhatsApp ───────────────────────────

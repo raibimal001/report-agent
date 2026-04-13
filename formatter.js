@@ -6,9 +6,10 @@
  *   ADO            = total_orders        (X-report)
  *   AO             = total_sales / total_orders  (calculated)
  *   CASH SALE      = cash_amount         (X-report)
+ *   COUPON         = coupon              (X-report — coupon/voucher redemption total)
  *   Marn POS Sales = card_amount         (X-report — card/digital payment total)
  *   POS Sales      = reconciliation_total (summed from recon image(s), duplicates removed)
- *   Variance       = POS Sales - Marn POS Sales  (recon total minus card sales from X-report)
+ *   Variance       = POS Sales - Marn POS Sales
  */
 
 // ─────────────────────────────────────────────
@@ -19,21 +20,23 @@ function formatWhatsAppReport(xData, reconData) {
   const ado        = Math.round(xData.total_orders);
   const ao         = parseFloat(xData.average_order).toFixed(2);
   const cashSale   = formatNum(xData.cash_amount);
+  const coupon     = parseFloat(xData.coupon || 0);
 
   // MARN POS Sales = card_amount from X-report
-  const marnPos    = parseFloat(xData.marn_pos_sales || 0);
+  const marnPos  = parseFloat(xData.marn_pos_sales || 0);
 
   // POS Sales = total from reconciliation image(s), duplicates already removed
-  const posSales   = parseFloat(reconData.reconciliation_total || 0);
+  const posSales = parseFloat(reconData.reconciliation_total || 0);
 
   // Variance = POS Sales (recon) − MARN POS Sales (card from X-report)
-  const variance   = parseFloat((posSales - marnPos).toFixed(2));
+  const variance = parseFloat((posSales - marnPos).toFixed(2));
 
-  const marnStr    = formatNum(marnPos);
-  const posStr     = formatNum(posSales);
-  const varAbs     = formatNum(Math.abs(variance));
-  const varSign    = variance > 0 ? '+' : variance < 0 ? '-' : '';
-  const varFlag    = variance === 0 ? '✅ OK' : '⚠️ CHECK';
+  const marnStr  = formatNum(marnPos);
+  const posStr   = formatNum(posSales);
+  const couponStr= formatNum(coupon);
+  const varAbs   = formatNum(Math.abs(variance));
+  const varSign  = variance > 0 ? '+' : variance < 0 ? '-' : '';
+  const varFlag  = variance === 0 ? '✅ OK' : '⚠️ CHECK';
 
   // Duplicate info
   const dupLine = reconData.duplicate_count > 0
@@ -50,6 +53,9 @@ function formatWhatsAppReport(xData, reconData) {
     });
   }
 
+  // Only show coupon line if value > 0
+  const couponLine = coupon > 0 ? `\n  🎟️  Coupon            : ${String(couponStr).padStart(10)}` : '';
+
   const report =
 `*📊 DAILY SALES UPDATE*
 \`\`\`
@@ -62,7 +68,7 @@ function formatWhatsAppReport(xData, reconData) {
   💰 Gross Sales    : ${String(grossSales).padStart(10)}
   📦 ADO            : ${String(ado).padStart(10)}
   📊 Avg Order (AO) : ${String(ao).padStart(10)}
-  💵 Cash Sale      : ${String(cashSale).padStart(10)}
+  💵 Cash Sale      : ${String(cashSale).padStart(10)}${couponLine}
 
 ▌ POS RECONCILIATION${reconBreakdown}
   🏧 MARN POS Sales : ${String(marnStr).padStart(10)}
@@ -78,18 +84,19 @@ _Thank you_ 🙏
 }
 
 // ─────────────────────────────────────────────
-// Summary for UI data table
+// Summary for UI — Report panel only (no raw X-report table)
 // ─────────────────────────────────────────────
 function generateSummary(xData, reconData) {
   const marnPos  = parseFloat(xData.marn_pos_sales || 0);
   const posSales = parseFloat(reconData.reconciliation_total || 0);
   const variance = parseFloat((posSales - marnPos).toFixed(2));
+  const coupon   = parseFloat(xData.coupon || 0);
 
   // Per-image breakdown for Reconciliation section
   const reconImageItems = (reconData.images || []).map((img, i) => ({
-    label:     `  ↳ ${img.source_label || `Image ${i + 1}`}`,
+    label:     `↳ ${img.source_label || `Image ${i + 1}`}`,
     value:     formatNum(img.pos_sales || 0),
-    highlight: false
+    sub:       true
   }));
 
   return {
@@ -97,47 +104,35 @@ function generateSummary(xData, reconData) {
       {
         title: '📍 Branch & Session',
         items: [
-          { label: 'Branch',   value: xData.branch  || 'N/A' },
-          { label: 'Date',     value: xData.date    || 'N/A' },
-          { label: 'Time',     value: xData.time    || 'N/A' },
-          { label: 'Cashier',  value: xData.cashier || 'N/A' }
+          { label: 'Branch', value: xData.branch || 'N/A' },
+          { label: 'Date',   value: xData.date   || 'N/A' },
+          { label: 'Time',   value: xData.time   || 'N/A' }
         ]
       },
       {
-        title: '💰 Sales Metrics (X-Report)',
+        title: '💰 Sales Summary',
         items: [
-          { label: 'Gross Sales',          value: formatNum(xData.total_sales)  },
-          { label: 'ADO (Total Orders)',   value: Math.round(xData.total_orders).toString() },
-          { label: 'AO (Avg Order)',       value: parseFloat(xData.average_order).toFixed(2), calculated: true },
-          { label: 'Cash Sales',           value: formatNum(xData.cash_amount)  },
-          { label: 'Card Sales (MARN POS)',value: formatNum(xData.card_amount)  },
-          { label: 'Net Sales',            value: formatNum(xData.net_sales)    },
-          { label: 'Sales Tax',            value: formatNum(xData.sales_tax)    }
+          { label: 'Gross Sales',        value: formatNum(xData.total_sales) },
+          { label: 'ADO (Total Orders)', value: Math.round(xData.total_orders).toString() },
+          { label: 'AO (Avg Order)',     value: parseFloat(xData.average_order).toFixed(2), calculated: true },
+          { label: 'Cash Sale',          value: formatNum(xData.cash_amount) },
+          ...(coupon > 0 ? [{ label: 'Coupon', value: formatNum(coupon), highlight: false }] : [])
         ]
       },
       {
-        title: '📋 Reconciliation (POS Sales)',
+        title: '📋 POS Reconciliation',
         items: [
           ...reconImageItems,
-          { label: 'Duplicates Removed',   value: reconData.duplicate_count.toString(), highlight: reconData.duplicate_count > 0 },
-          { label: 'POS Sales Total',      value: formatNum(posSales), bold: true }
+          { label: 'Duplicates Removed', value: reconData.duplicate_count.toString(), highlight: reconData.duplicate_count > 0 },
+          { label: 'POS Sales Total',    value: formatNum(posSales), bold: true }
         ]
       },
       {
         title: '🔁 Variance Analysis',
         items: [
-          { label: 'MARN POS Sales (Card)',value: formatNum(marnPos) },
-          { label: 'POS Sales (Recon)',    value: formatNum(posSales) },
-          { label: 'Variance',            value: formatNum(variance), highlight: variance !== 0, bold: true }
-        ]
-      },
-      {
-        title: '📊 Other Details',
-        items: [
-          { label: 'Total Discount',  value: formatNum(xData.total_discount) },
-          { label: 'Total Refund',    value: formatNum(xData.total_refund)   },
-          { label: 'Total Void',      value: formatNum(xData.total_void)     },
-          { label: 'Complimentary',   value: formatNum(xData.complimentary)  }
+          { label: 'MARN POS Sales (Card)', value: formatNum(marnPos) },
+          { label: 'POS Sales (Recon)',     value: formatNum(posSales) },
+          { label: 'Variance',              value: formatNum(variance), highlight: variance !== 0, bold: true }
         ]
       }
     ]
