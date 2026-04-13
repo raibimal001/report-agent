@@ -1,918 +1,684 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Report Agent — POS X-Report Generator</title>
-  <meta name="description" content="Automated POS X-Report to WhatsApp format converter. Upload a receipt image and get a formatted WhatsApp report instantly." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <meta name="description" content="Automated POS X-Report to WhatsApp format converter with POS reconciliation."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
-    :root {
-      --bg-base:       #0a0e1a;
-      --bg-card:       #111827;
-      --bg-card2:      #1a2235;
-      --bg-input:      #0d1424;
-      --border:        rgba(255,255,255,0.07);
-      --border-hover:  rgba(99,179,237,0.4);
-      --accent:        #3b82f6;
-      --accent-glow:   rgba(59,130,246,0.25);
-      --accent2:       #06b6d4;
-      --green:         #10b981;
-      --green-glow:    rgba(16,185,129,0.2);
-      --yellow:        #f59e0b;
-      --red:           #ef4444;
-      --whatsapp:      #25d366;
-      --whatsapp-dark: #128c7e;
-      --whatsapp-bg:   #0d1f16;
-      --text-primary:  #f1f5f9;
-      --text-secondary:#94a3b8;
-      --text-muted:    #475569;
-      --radius:        14px;
-      --radius-sm:     8px;
-      --shadow:        0 4px 32px rgba(0,0,0,0.4);
+    :root{
+      --bg:        #060b14;
+      --card:      #0d1524;
+      --card2:     #111d32;
+      --input:     #090f1c;
+      --border:    rgba(255,255,255,0.06);
+      --bh:        rgba(99,179,237,0.35);
+      --accent:    #4f90ff;
+      --accent2:   #2563eb;
+      --ag:        rgba(79,144,255,0.18);
+      --cyan:      #22d3ee;
+      --cyang:     rgba(34,211,238,0.15);
+      --green:     #34d399;
+      --gg:        rgba(52,211,153,0.12);
+      --yellow:    #fbbf24;
+      --yg:        rgba(251,191,36,0.1);
+      --red:       #f87171;
+      --wa:        #25d366;
+      --wad:       #128c7e;
+      --wabg:      #09160f;
+      --txt:       #f1f5f9;
+      --txt2:      #8fa3bf;
+      --txt3:      #3d5068;
+      --r:         16px;
+      --rs:        10px;
+      --shadow:    0 8px 40px rgba(0,0,0,.5);
     }
 
-    html { scroll-behavior: smooth; }
-
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg-base);
-      color: var(--text-primary);
-      min-height: 100vh;
-      overflow-x: hidden;
+    html{scroll-behavior:smooth}
+    body{
+      font-family:'Inter',sans-serif;
+      background:var(--bg);
+      color:var(--txt);
+      min-height:100vh;
+      overflow-x:hidden;
     }
-
-    /* Animated background */
-    body::before {
-      content: '';
-      position: fixed;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
+    body::before{
+      content:'';position:fixed;inset:0;
       background:
-        radial-gradient(ellipse at 20% 20%, rgba(59,130,246,0.06) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 80%, rgba(6,182,212,0.06) 0%, transparent 50%),
-        radial-gradient(ellipse at 50% 50%, rgba(16,185,129,0.03) 0%, transparent 60%);
-      pointer-events: none;
-      z-index: 0;
+        radial-gradient(ellipse at 20% 10%,rgba(79,144,255,.08) 0%,transparent 55%),
+        radial-gradient(ellipse at 80% 85%,rgba(34,211,238,.06) 0%,transparent 50%),
+        radial-gradient(ellipse at 50% 50%,rgba(52,211,153,.025) 0%,transparent 65%);
+      pointer-events:none;z-index:0;
     }
 
     /* ── Header ── */
-    header {
-      position: relative;
-      z-index: 10;
-      padding: 32px 40px 24px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(8px);
+    header{
+      position:sticky;top:0;z-index:100;
+      padding:18px 36px;
+      display:flex;align-items:center;gap:14px;
+      border-bottom:1px solid var(--border);
+      backdrop-filter:blur(20px);
+      background:rgba(6,11,20,.85);
     }
+    .logo{
+      width:42px;height:42px;flex-shrink:0;
+      background:linear-gradient(135deg,var(--accent),var(--cyan));
+      border-radius:12px;display:flex;align-items:center;justify-content:center;
+      font-size:20px;box-shadow:0 0 30px rgba(79,144,255,.3);
+    }
+    .logo-text h1{font-size:18px;font-weight:800;background:linear-gradient(90deg,#e2e8f0,#64a0ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .logo-text p{font-size:11px;color:var(--txt3);margin-top:1px;letter-spacing:.02em}
+    .badge{
+      margin-left:auto;display:flex;align-items:center;gap:7px;
+      padding:6px 14px;border-radius:100px;font-size:11px;font-weight:600;border:1px solid;
+      transition:all .4s;letter-spacing:.03em;
+    }
+    .badge.online{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.3);color:var(--green)}
+    .badge.offline{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.25);color:var(--red)}
+    .dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
-    .logo-icon {
-      width: 48px; height: 48px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px;
-      box-shadow: 0 0 20px var(--accent-glow);
-      flex-shrink: 0;
+    /* ── Layout ── */
+    main{
+      position:relative;z-index:1;
+      max-width:1480px;margin:0 auto;padding:32px 24px;
+      display:grid;grid-template-columns:400px 1fr;gap:22px;
     }
-
-    .logo-text h1 {
-      font-size: 22px;
-      font-weight: 700;
-      background: linear-gradient(90deg, #f1f5f9, #94a3b8);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .logo-text p {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .status-badge {
-      margin-left: auto;
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 16px;
-      border-radius: 100px;
-      font-size: 12px;
-      font-weight: 500;
-      border: 1px solid;
-      transition: all 0.3s ease;
-    }
-
-    .status-badge.online {
-      background: rgba(16,185,129,0.1);
-      border-color: rgba(16,185,129,0.3);
-      color: var(--green);
-    }
-
-    .status-badge.offline {
-      background: rgba(239,68,68,0.1);
-      border-color: rgba(239,68,68,0.3);
-      color: var(--red);
-    }
-
-    .status-badge .dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: currentColor;
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: 0.5; transform: scale(0.8); }
-    }
-
-    /* ── Main Layout ── */
-    main {
-      position: relative;
-      z-index: 1;
-      max-width: 1300px;
-      margin: 0 auto;
-      padding: 40px 32px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 28px;
-    }
-
-    @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; }
-      header { padding: 20px; }
-    }
+    @media(max-width:960px){main{grid-template-columns:1fr}header{padding:16px 18px}}
 
     /* ── Cards ── */
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 28px;
-      box-shadow: var(--shadow);
-      transition: border-color 0.3s ease;
+    .card{
+      background:var(--card);border:1px solid var(--border);
+      border-radius:var(--r);padding:22px;
+      box-shadow:var(--shadow);
+      transition:border-color .3s,box-shadow .3s;
+    }
+    .card:hover{border-color:rgba(255,255,255,.1)}
+    .card+.card{margin-top:18px}
+
+    .card-title{
+      display:flex;align-items:center;gap:9px;
+      font-size:11px;font-weight:700;
+      color:var(--txt2);letter-spacing:.07em;text-transform:uppercase;
+      margin-bottom:18px;
+    }
+    .step-num{
+      width:22px;height:22px;border-radius:50%;flex-shrink:0;
+      background:linear-gradient(135deg,var(--accent),var(--cyan));
+      display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-weight:800;color:#fff;
     }
 
-    .card:hover { border-color: rgba(255,255,255,0.12); }
+    /* ── Upload zones ── */
+    .upload-zone{
+      border:2px dashed var(--border);border-radius:var(--r);
+      padding:28px 16px;text-align:center;cursor:pointer;
+      transition:all .3s;position:relative;overflow:hidden;
+      background:var(--input);
+    }
+    .upload-zone::after{
+      content:'';position:absolute;inset:0;
+      background:linear-gradient(135deg,rgba(79,144,255,.05),transparent);
+      opacity:0;transition:opacity .3s;pointer-events:none;
+    }
+    .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);box-shadow:0 0 0 4px var(--ag)}
+    .upload-zone:hover::after,.upload-zone.dragover::after{opacity:1}
+    .upload-zone .uz-icon{font-size:32px;margin-bottom:9px;display:block;transition:transform .35s}
+    .upload-zone:hover .uz-icon{transform:translateY(-5px) scale(1.05)}
+    .upload-zone h3{font-size:13px;font-weight:700;margin-bottom:4px;color:var(--txt)}
+    .upload-zone p{font-size:11px;color:var(--txt3)}
+    .upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
 
-    .card-title {
-      display: flex; align-items: center; gap: 10px;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      margin-bottom: 20px;
+    .recon-zone{border-color:rgba(34,211,238,.2)}
+    .recon-zone:hover,.recon-zone.dragover{border-color:var(--cyan);box-shadow:0 0 0 4px var(--cyang)}
+
+    /* ── Pill info below upload ── */
+    .zone-info{
+      display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;
+    }
+    .pill{
+      font-size:10px;font-weight:600;padding:3px 10px;border-radius:100px;
+      background:rgba(255,255,255,.04);border:1px solid var(--border);
+      color:var(--txt3);letter-spacing:.04em;
     }
 
-    .card-title .icon {
-      font-size: 18px;
+    /* ── Preview strip ── */
+    .preview-area{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+    .thumb{
+      position:relative;width:68px;height:68px;flex-shrink:0;
+      border-radius:10px;overflow:hidden;border:1px solid var(--border);
+      box-shadow:0 2px 10px rgba(0,0,0,.3);
     }
-
-    /* ── Upload Area ── */
-    .upload-zone {
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 48px 24px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-      background: var(--bg-input);
+    .thumb img{width:100%;height:100%;object-fit:cover}
+    .thumb-del{
+      position:absolute;top:3px;right:3px;width:18px;height:18px;
+      background:rgba(248,113,113,.9);border:none;border-radius:50%;
+      color:#fff;font-size:11px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      transition:transform .2s;
     }
-
-    .upload-zone::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: linear-gradient(135deg, transparent, rgba(59,130,246,0.03));
-      opacity: 0;
-      transition: opacity 0.3s ease;
+    .thumb-del:hover{transform:scale(1.2)}
+    .thumb-count{
+      font-size:11px;color:var(--txt2);margin-top:8px;font-weight:500;
+      display:none;
     }
-
-    .upload-zone:hover,
-    .upload-zone.dragover {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 4px var(--accent-glow);
-    }
-
-    .upload-zone:hover::before,
-    .upload-zone.dragover::before { opacity: 1; }
-
-    .upload-zone .upload-icon {
-      font-size: 48px;
-      margin-bottom: 16px;
-      display: block;
-      transition: transform 0.3s ease;
-    }
-
-    .upload-zone:hover .upload-icon { transform: translateY(-4px); }
-
-    .upload-zone h3 {
-      font-size: 16px; font-weight: 600;
-      margin-bottom: 8px;
-    }
-
-    .upload-zone p {
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .upload-zone input[type="file"] {
-      position: absolute; inset: 0;
-      opacity: 0; cursor: pointer;
-    }
-
-    /* Image preview */
-    .preview-wrap {
-      position: relative;
-      border-radius: var(--radius-sm);
-      overflow: hidden;
-      margin-top: 16px;
-      display: none;
-    }
-
-    .preview-wrap.visible { display: block; }
-
-    .preview-wrap img {
-      width: 100%;
-      max-height: 300px;
-      object-fit: contain;
-      border-radius: var(--radius-sm);
-      background: #0d1424;
-    }
-
-    .preview-remove {
-      position: absolute; top: 8px; right: 8px;
-      background: rgba(239,68,68,0.85);
-      color: white;
-      border: none; border-radius: 50%;
-      width: 28px; height: 28px;
-      cursor: pointer; font-size: 16px;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s ease;
-    }
-
-    .preview-remove:hover { background: var(--red); transform: scale(1.1); }
+    .thumb-count.visible{display:block}
 
     /* ── Buttons ── */
-    .btn {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 14px 28px;
-      border-radius: var(--radius-sm);
-      font-family: 'Inter', sans-serif;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      transition: all 0.25s ease;
-      width: 100%;
-      margin-top: 16px;
+    .btn{
+      display:flex;align-items:center;justify-content:center;gap:8px;
+      padding:13px 24px;border-radius:var(--rs);border:none;
+      font-family:'Inter',sans-serif;font-size:14px;font-weight:700;
+      cursor:pointer;transition:all .25s;width:100%;margin-top:14px;
+      letter-spacing:.02em;
+    }
+    .btn-primary{
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:#fff;box-shadow:0 4px 20px rgba(79,144,255,.3);
+    }
+    .btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 30px rgba(79,144,255,.45)}
+    .btn-primary:disabled{opacity:.35;cursor:not-allowed;transform:none}
+    .btn-copy{
+      background:linear-gradient(135deg,#25d366,#128c7e);
+      color:#fff;box-shadow:0 4px 16px rgba(37,211,102,.25);
+      font-size:12px;padding:9px 16px;width:auto;margin-top:0;
+    }
+    .btn-copy:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(37,211,102,.4)}
+    .btn-copy.copied{background:linear-gradient(135deg,var(--green),#059669)}
+
+    /* ── Loading ── */
+    .loading-wrap{display:none;flex-direction:column;align-items:center;gap:14px;padding:28px;text-align:center}
+    .loading-wrap.active{display:flex}
+    .spinner{
+      width:42px;height:42px;
+      border:3px solid rgba(79,144,255,.15);
+      border-top-color:var(--accent);
+      border-radius:50%;animation:spin .75s linear infinite;
+      box-shadow:0 0 20px rgba(79,144,255,.2);
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .steps{display:flex;flex-direction:column;gap:6px;width:100%;max-width:290px}
+    .step-item{
+      display:flex;align-items:center;gap:9px;
+      padding:7px 14px;border-radius:var(--rs);
+      background:var(--card2);font-size:12px;color:var(--txt3);
+      transition:all .4s;border:1px solid transparent;
+    }
+    .step-item.active{color:var(--accent);background:rgba(79,144,255,.08);border-color:rgba(79,144,255,.2)}
+    .step-item.done{color:var(--green);background:var(--gg);border-color:rgba(52,211,153,.15)}
+
+    /* ── Data table ── */
+    .section-block{margin-bottom:20px}
+    .section-label{
+      font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+      color:var(--accent);margin-bottom:9px;padding-bottom:6px;
+      border-bottom:1px solid rgba(79,144,255,.15);
+      display:flex;align-items:center;gap:6px;
+    }
+    .row{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:8px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:13px;
+    }
+    .row:last-child{border:none}
+    .row-label{color:var(--txt2);font-size:12.5px}
+    .row-val{font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--txt);font-size:13px}
+    .row-val.calc::after{content:'CALC';font-size:9px;font-family:'Inter',sans-serif;background:rgba(34,211,238,.12);color:var(--cyan);padding:1px 5px;border-radius:4px;margin-left:6px;vertical-align:middle;letter-spacing:.04em}
+    .row-val.warn{color:var(--yellow)}
+    .row-val.ok{color:var(--green)}
+    .row-val.bold{font-size:14px}
+    .row-label.sub{padding-left:12px;color:var(--txt3);font-size:12px}
+
+    /* variance highlight */
+    .variance-ok{color:var(--green)!important}
+    .variance-warn{color:var(--yellow)!important}
+
+    /* duplicate badge */
+    .dup-badge{
+      display:inline-flex;align-items:center;gap:4px;
+      padding:2px 9px;border-radius:100px;font-size:10px;font-weight:700;
+      background:var(--yg);color:var(--yellow);
+      border:1px solid rgba(251,191,36,.3);margin-left:6px;letter-spacing:.03em;
     }
 
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #2563eb);
-      color: white;
-      box-shadow: 0 4px 15px rgba(59,130,246,0.3);
+    /* ── WhatsApp panel ── */
+    .wa-panel{
+      background:var(--wabg);
+      border:1px solid rgba(37,211,102,.15);
+      border-radius:var(--r);padding:20px;
     }
-
-    .btn-primary:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 25px rgba(59,130,246,0.45);
+    .wa-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .wa-label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--wa)}
+    .wa-bubble{
+      background:linear-gradient(160deg,#1a3a24,#0f2217);
+      border-radius:14px 14px 2px 14px;
+      padding:18px 20px;
+      font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.8;
+      white-space:pre-wrap;color:#d1e7d7;
+      box-shadow:0 4px 24px rgba(0,0,0,.4);
+      max-height:540px;overflow-y:auto;
+      border:1px solid rgba(37,211,102,.1);
     }
+    .wa-bubble::-webkit-scrollbar{width:4px}
+    .wa-bubble::-webkit-scrollbar-thumb{background:rgba(37,211,102,.2);border-radius:2px}
+    .wa-time{text-align:right;font-size:10px;color:rgba(255,255,255,.25);margin-top:6px}
 
-    .btn-primary:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    /* status banner */
+    .status-banner{
+      margin-top:12px;padding:11px 16px;border-radius:10px;
+      font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px;
     }
+    .status-banner.ok{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);color:var(--green)}
+    .status-banner.warn{background:var(--yg);border:1px solid rgba(251,191,36,.25);color:var(--yellow)}
 
-    .btn-copy {
-      background: linear-gradient(135deg, var(--whatsapp), var(--whatsapp-dark));
-      color: white;
-      box-shadow: 0 4px 15px rgba(37,211,102,0.25);
-      font-size: 14px;
-      padding: 12px 20px;
-      width: auto;
-      margin-top: 0;
+    /* ── Empty / error ── */
+    .empty{
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:48px 20px;color:var(--txt3);text-align:center;gap:10px;
     }
-
-    .btn-copy:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 25px rgba(37,211,102,0.4);
+    .empty .ei{font-size:38px;opacity:.3}
+    .empty p{font-size:12.5px;line-height:1.6}
+    .error-box{
+      background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.22);
+      border-radius:var(--rs);padding:13px 16px;color:var(--red);font-size:12.5px;
+      display:none;margin-top:12px;line-height:1.5;
     }
+    .error-box.visible{display:block}
 
-    .btn-copy.copied {
-      background: linear-gradient(135deg, var(--green), #059669);
+    /* ── Right col ── */
+    .right-col{display:flex;flex-direction:column;gap:20px}
+
+    /* ── Key metrics strip ── */
+    .metrics-strip{
+      display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;
     }
-
-    /* ── Loading State ── */
-    .loading-overlay {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      padding: 48px;
-      text-align: center;
+    .metric-card{
+      background:var(--card2);border:1px solid var(--border);border-radius:12px;
+      padding:14px 16px;text-align:center;transition:all .3s;
     }
+    .metric-card:hover{border-color:rgba(79,144,255,.25);transform:translateY(-2px)}
+    .metric-card .mc-label{font-size:10px;color:var(--txt3);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+    .metric-card .mc-val{font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace}
+    .metric-card .mc-sub{font-size:10px;color:var(--txt3);margin-top:3px}
+    .mc-green .mc-val{color:var(--green)}
+    .mc-blue  .mc-val{color:var(--accent)}
+    .mc-yellow .mc-val{color:var(--yellow)}
 
-    .loading-overlay.active { display: flex; }
+    @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+    .fade{animation:fadeUp .45s ease both}
 
-    .spinner {
-      width: 48px; height: 48px;
-      border: 3px solid rgba(59,130,246,0.2);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .loading-overlay p {
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-
-    .loading-steps {
-      display: flex; flex-direction: column; gap: 8px;
-      width: 100%; max-width: 300px;
-    }
-
-    .loading-step {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 14px;
-      border-radius: var(--radius-sm);
-      background: var(--bg-card2);
-      font-size: 13px;
-      color: var(--text-muted);
-      transition: all 0.4s ease;
-    }
-
-    .loading-step.active {
-      color: var(--accent);
-      background: rgba(59,130,246,0.1);
-      border: 1px solid rgba(59,130,246,0.2);
-    }
-
-    .loading-step.done {
-      color: var(--green);
-      background: rgba(16,185,129,0.08);
-    }
-
-    /* ── Data Table ── */
-    .data-section {
-      margin-bottom: 20px;
-    }
-
-    .section-header {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 10px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid rgba(59,130,246,0.2);
-    }
-
-    .data-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.03);
-      font-size: 13px;
-    }
-
-    .data-row:last-child { border-bottom: none; }
-
-    .data-label { color: var(--text-secondary); }
-
-    .data-value {
-      font-weight: 600;
-      font-family: 'JetBrains Mono', monospace;
-      color: var(--text-primary);
-    }
-
-    .data-value.calculated {
-      color: var(--accent2);
-      position: relative;
-    }
-
-    .data-value.calculated::after {
-      content: 'CALC';
-      font-size: 9px;
-      font-family: 'Inter', sans-serif;
-      background: rgba(6,182,212,0.15);
-      color: var(--accent2);
-      padding: 1px 5px;
-      border-radius: 3px;
-      margin-left: 6px;
-      vertical-align: middle;
-    }
-
-    .data-value.alert { color: var(--red); }
-
-    /* ── WhatsApp Output Panel ── */
-    .whatsapp-panel {
-      background: var(--whatsapp-bg);
-      border: 1px solid rgba(37,211,102,0.2);
-      border-radius: var(--radius);
-      padding: 24px;
-      position: relative;
-    }
-
-    .wa-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 16px;
-    }
-
-    .wa-title {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--whatsapp);
-    }
-
-    .wa-bubble {
-      background: #1f5c3c;
-      border-radius: 12px 12px 0 12px;
-      padding: 18px 20px;
-      font-family: 'Inter', sans-serif;
-      font-size: 14px;
-      line-height: 1.7;
-      white-space: pre-wrap;
-      color: #e9edef;
-      position: relative;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      max-height: 500px;
-      overflow-y: auto;
-    }
-
-    .wa-bubble::-webkit-scrollbar { width: 4px; }
-    .wa-bubble::-webkit-scrollbar-track { background: transparent; }
-    .wa-bubble::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-
-    .wa-timestamp {
-      text-align: right;
-      font-size: 11px;
-      color: rgba(255,255,255,0.4);
-      margin-top: 6px;
-      padding: 0 4px;
-    }
-
-    /* ── Empty / Error states ── */
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 60px 20px;
-      color: var(--text-muted);
-      text-align: center;
-      gap: 12px;
-    }
-
-    .empty-state .empty-icon { font-size: 48px; opacity: 0.5; }
-    .empty-state p { font-size: 14px; }
-
-    .error-box {
-      background: rgba(239,68,68,0.08);
-      border: 1px solid rgba(239,68,68,0.25);
-      border-radius: var(--radius-sm);
-      padding: 16px 20px;
-      color: var(--red);
-      font-size: 14px;
-      display: none;
-    }
-
-    .error-box.visible { display: block; }
-
-    .api-warning {
-      background: rgba(245,158,11,0.08);
-      border: 1px solid rgba(245,158,11,0.25);
-      border-radius: var(--radius-sm);
-      padding: 16px 20px;
-      color: var(--yellow);
-      font-size: 13px;
-      margin-bottom: 16px;
-      display: none !important;
-    }
-
-    .api-warning.visible { display: block !important; }
-    .api-warning code {
-      background: rgba(245,158,11,0.15);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-    }
-
-    /* ── Right column stacking ── */
-    .right-col {
-      display: flex;
-      flex-direction: column;
-      gap: 28px;
-    }
-
-    /* ── Animations ── */
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .fade-in {
-      animation: fadeInUp 0.4s ease both;
-    }
-
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+    ::-webkit-scrollbar{width:5px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06);border-radius:3px}
   </style>
 </head>
-
 <body>
-  <!-- Header -->
-  <header>
-    <div class="logo-icon">📊</div>
-    <div class="logo-text">
-      <h1>Report Agent</h1>
-      <p>POS X-Report → WhatsApp Format Generator</p>
-    </div>
-    <div class="status-badge offline" id="statusBadge">
-      <span class="dot"></span>
-      <span id="statusText">Checking...</span>
-    </div>
-  </header>
 
-  <main>
-    <!-- LEFT COLUMN: Upload + Actions -->
-    <div class="left-col">
-      <div class="card">
-        <div class="card-title">
-          <span class="icon">📸</span>
-          Upload Receipt Image
-        </div>
+<!-- Header -->
+<header>
+  <div class="logo">📊</div>
+  <div class="logo-text">
+    <h1>Report Agent</h1>
+    <p>POS X-Report + Reconciliation → WhatsApp Format</p>
+  </div>
+  <div class="badge offline" id="badge">
+    <span class="dot"></span>
+    <span id="badgeText">Checking…</span>
+  </div>
+</header>
 
-        <!-- Upload Zone -->
-        <div class="upload-zone" id="uploadZone">
-          <span class="upload-icon">🧾</span>
-          <h3>Drop Your Receipt Here</h3>
-          <p>or click to browse files</p>
-          <p style="margin-top:8px; font-size:11px; color: var(--text-muted)">JPG · PNG · WEBP · GIF · up to 10MB</p>
-          <input type="file" id="fileInput" accept="image/*" />
-        </div>
+<main>
+  <!-- ═══ LEFT: Uploads ═══ -->
+  <div class="left-col">
 
-        <!-- Preview -->
-        <div class="preview-wrap" id="previewWrap">
-          <img id="previewImg" src="" alt="Receipt preview" />
-          <button class="preview-remove" id="removeBtn" title="Remove image">✕</button>
-        </div>
-
-        <!-- Error -->
-        <div class="error-box" id="errorBox"></div>
-
-        <!-- Generate Button -->
-        <button class="btn btn-primary" id="generateBtn" disabled>
-          <span id="btnIcon">⚡</span>
-          <span id="btnText">Generate Report</span>
-        </button>
+    <!-- Step 1: X-Report -->
+    <div class="card">
+      <div class="card-title">
+        <div class="step-num">1</div>
+        X-Report Receipt
       </div>
 
-      <!-- Loading Card -->
-      <div class="card" id="loadingCard" style="display:none;">
-        <div class="loading-overlay active">
-          <div class="spinner"></div>
-          <p>Processing your receipt…</p>
-          <div class="loading-steps">
-            <div class="loading-step" id="step1">
-              <span>📤</span> Uploading image
-            </div>
-            <div class="loading-step" id="step2">
-              <span>🤖</span> Claude AI analyzing receipt
-            </div>
-            <div class="loading-step" id="step3">
-              <span>🧮</span> Calculating metrics (AO, ADO)
-            </div>
-            <div class="loading-step" id="step4">
-              <span>📱</span> Formatting WhatsApp report
-            </div>
-          </div>
-        </div>
+      <div class="upload-zone" id="receiptZone">
+        <span class="uz-icon">🧾</span>
+        <h3>Drop X-Report Receipt Here</h3>
+        <p>This is the POS end-of-day receipt</p>
+        <input type="file" id="receiptInput" accept="image/*"/>
       </div>
+      <div class="zone-info">
+        <span class="pill">JPG</span><span class="pill">PNG</span>
+        <span class="pill">WEBP</span><span class="pill">≤ 10 MB</span>
+      </div>
+      <div class="preview-area" id="receiptPreview"></div>
     </div>
 
-    <!-- RIGHT COLUMN: Results -->
-    <div class="right-col">
-      <!-- Extracted Data Table -->
-      <div class="card">
-        <div class="card-title">
-          <span class="icon">📋</span>
-          Extracted Data
-        </div>
-
-        <div id="dataContent">
-          <div class="empty-state">
-            <div class="empty-icon">📄</div>
-            <p>Upload a receipt image to see extracted data</p>
-          </div>
-        </div>
+    <!-- Step 2: Reconciliation -->
+    <div class="card">
+      <div class="card-title">
+        <div class="step-num">2</div>
+        Reconciliation Image(s)
+        <span style="font-size:10px;color:var(--txt3);font-weight:400;text-transform:none;margin-left:4px">(up to 5)</span>
       </div>
+      <div class="upload-zone recon-zone" id="reconZone">
+        <span class="uz-icon">📋</span>
+        <h3>Drop Reconciliation Image(s)</h3>
+        <p>POS Sales totals — duplicates auto-detected</p>
+        <input type="file" id="reconInput" accept="image/*" multiple/>
+      </div>
+      <div class="zone-info">
+        <span class="pill">MULTIPLE OK</span>
+        <span class="pill">DEDUP ✓</span>
+        <span class="pill">≤ 5 IMAGES</span>
+      </div>
+      <div class="preview-area" id="reconPreview"></div>
+      <div class="thumb-count" id="reconCount"></div>
+    </div>
 
-      <!-- WhatsApp Output -->
-      <div class="card">
-        <div class="card-title">
-          <span class="icon">💬</span>
-          WhatsApp Report
-        </div>
+    <!-- Generate -->
+    <div class="card" style="padding:18px">
+      <div class="error-box" id="errorBox"></div>
+      <button class="btn btn-primary" id="generateBtn" disabled>
+        <span id="btnIcon">⚡</span>
+        <span id="btnText">Generate Report</span>
+      </button>
+    </div>
 
-        <div id="waContent">
-          <div class="empty-state">
-            <div class="empty-icon">📱</div>
-            <p>Your formatted WhatsApp message will appear here</p>
-          </div>
+    <!-- Loading -->
+    <div class="card" id="loadingCard" style="display:none">
+      <div class="loading-wrap active">
+        <div class="spinner"></div>
+        <p style="font-size:12.5px;color:var(--txt2)">Processing images with Claude AI…</p>
+        <div class="steps">
+          <div class="step-item" id="s1">📤 Uploading images</div>
+          <div class="step-item" id="s2">🤖 Reading X-report receipt</div>
+          <div class="step-item" id="s3">📋 Extracting POS Sales from recon</div>
+          <div class="step-item" id="s4">🔍 Checking for duplicates</div>
+          <div class="step-item" id="s5">📱 Formatting WhatsApp report</div>
         </div>
       </div>
     </div>
-  </main>
 
-  <script>
-    // ── State ──
-    let selectedFile = null;
-    let currentReport = null;
+  </div><!-- /left -->
 
-    // ── DOM ──
-    const fileInput     = document.getElementById('fileInput');
-    const uploadZone    = document.getElementById('uploadZone');
-    const previewWrap   = document.getElementById('previewWrap');
-    const previewImg    = document.getElementById('previewImg');
-    const removeBtn     = document.getElementById('removeBtn');
-    const generateBtn   = document.getElementById('generateBtn');
-    const loadingCard   = document.getElementById('loadingCard');
-    const dataContent   = document.getElementById('dataContent');
-    const waContent     = document.getElementById('waContent');
-    const errorBox      = document.getElementById('errorBox');
-    const statusBadge   = document.getElementById('statusBadge');
-    const statusText    = document.getElementById('statusText');
-    const apiWarning    = document.getElementById('apiWarning');
-    const btnIcon       = document.getElementById('btnIcon');
-    const btnText       = document.getElementById('btnText');
+  <!-- ═══ RIGHT: Results ═══ -->
+  <div class="right-col">
 
-    // ── Check server health on load ──
-    async function checkHealth() {
-      try {
-        const res = await fetch('/api/health');
-        const data = await res.json();
-        if (data.status === 'ok') {
-          statusBadge.className = 'status-badge online';
-          statusText.textContent = 'System Ready';
-          if (data.apiKeyConfigured === false) {
-            apiWarning.classList.add('visible');
-          } else {
-            apiWarning.classList.remove('visible');
-          }
+    <div class="card">
+      <div class="card-title">📋 Extracted Data</div>
+      <div id="dataContent">
+        <div class="empty"><div class="ei">📄</div><p>Upload an X-report receipt and<br>reconciliation image(s) to begin</p></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💬 WhatsApp Report</div>
+      <div id="waContent">
+        <div class="empty"><div class="ei">📱</div><p>Your formatted WhatsApp message<br>will appear here after processing</p></div>
+      </div>
+    </div>
+
+  </div><!-- /right -->
+</main>
+
+<script>
+// ── State ──────────────────────────────────────
+let receiptFile   = null;
+let reconFiles    = [];
+let currentResult = null;
+
+// ── DOM ────────────────────────────────────────
+const receiptZone    = document.getElementById('receiptZone');
+const receiptInput   = document.getElementById('receiptInput');
+const receiptPreview = document.getElementById('receiptPreview');
+const reconZone      = document.getElementById('reconZone');
+const reconInput     = document.getElementById('reconInput');
+const reconPreview   = document.getElementById('reconPreview');
+const reconCount     = document.getElementById('reconCount');
+const generateBtn    = document.getElementById('generateBtn');
+const loadingCard    = document.getElementById('loadingCard');
+const dataContent    = document.getElementById('dataContent');
+const waContent      = document.getElementById('waContent');
+const errorBox       = document.getElementById('errorBox');
+const badge          = document.getElementById('badge');
+const badgeText      = document.getElementById('badgeText');
+const btnIcon        = document.getElementById('btnIcon');
+const btnText        = document.getElementById('btnText');
+
+// ── Health check ───────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch('/api/health');
+    const d = await r.json();
+    if (d.status === 'ok') {
+      badge.className = 'badge online';
+      badgeText.textContent = d.apiKeyConfigured ? 'System Ready' : 'No API Key';
+    }
+  } catch {
+    badge.className = 'badge offline';
+    badgeText.textContent = 'Server Offline';
+  }
+}
+checkHealth();
+
+// ── Receipt upload ─────────────────────────────
+receiptInput.addEventListener('change', e => { if(e.target.files[0]) setReceipt(e.target.files[0]); });
+setupDragDrop(receiptZone, file => setReceipt(file));
+
+function setReceipt(file) {
+  receiptFile = file;
+  hideError();
+  renderThumb(receiptPreview, file, () => { receiptFile = null; updateBtn(); });
+  updateBtn();
+}
+
+// ── Reconciliation upload ──────────────────────
+reconInput.addEventListener('change', e => { addReconFiles(Array.from(e.target.files)); });
+setupDragDrop(reconZone, (file) => addReconFiles([file]), true);
+
+function addReconFiles(files) {
+  const allowed   = files.filter(f => f.type.startsWith('image/'));
+  const remaining = 5 - reconFiles.length;
+  const toAdd     = allowed.slice(0, remaining);
+  reconFiles.push(...toAdd);
+  renderReconPreviews();
+  hideError();
+  updateBtn();
+}
+
+function removeReconFile(idx) {
+  reconFiles.splice(idx, 1);
+  renderReconPreviews();
+  updateBtn();
+}
+
+function renderReconPreviews() {
+  reconPreview.innerHTML = '';
+  reconFiles.forEach((f, i) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wrap = document.createElement('div');
+      wrap.className = 'thumb';
+      wrap.innerHTML = `<img src="${e.target.result}" alt="recon"/><button class="thumb-del" title="Remove">✕</button>`;
+      wrap.querySelector('.thumb-del').onclick = () => removeReconFile(i);
+      reconPreview.appendChild(wrap);
+    };
+    reader.readAsDataURL(f);
+  });
+  if (reconFiles.length > 0) {
+    reconCount.textContent = `${reconFiles.length} image${reconFiles.length > 1 ? 's' : ''} selected`;
+    reconCount.classList.add('visible');
+  } else {
+    reconCount.classList.remove('visible');
+  }
+}
+
+// ── Single thumb ───────────────────────────────
+function renderThumb(container, file, onRemove) {
+  container.innerHTML = '';
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wrap = document.createElement('div');
+    wrap.className = 'thumb';
+    wrap.innerHTML = `<img src="${e.target.result}" alt="preview"/><button class="thumb-del">✕</button>`;
+    wrap.querySelector('.thumb-del').onclick = () => { container.innerHTML = ''; onRemove(); };
+    container.appendChild(wrap);
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Enable/disable generate ───────────────────
+function updateBtn() {
+  generateBtn.disabled = !receiptFile;
+}
+
+// ── Drag & Drop ───────────────────────────────
+function setupDragDrop(zone, onFile, multi = false) {
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', ()  => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('dragover');
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (multi) { files.forEach(f => onFile(f)); }
+    else if (files[0]) onFile(files[0]);
+  });
+}
+
+// ── Generate Report ───────────────────────────
+generateBtn.addEventListener('click', generateReport);
+
+async function generateReport() {
+  if (!receiptFile) return;
+  hideError(); setLoading(true); activateStep(1);
+
+  try {
+    const formData = new FormData();
+    formData.append('receipt', receiptFile);
+    reconFiles.forEach(f => formData.append('reconciliation', f));
+
+    activateStep(2);
+    const res = await fetch('/api/extract', { method: 'POST', body: formData });
+    activateStep(3); await delay(500);
+    activateStep(4); await delay(500);
+    activateStep(5); await delay(350);
+
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'Unknown error');
+
+    currentResult = result;
+    renderMetrics(result);
+    renderData(result.summary);
+    renderWhatsApp(result.whatsappReport, result.variance);
+
+  } catch(err) {
+    showError(err.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── Metrics strip (top of data panel) ────────
+function renderMetrics(result) {
+  // no-op: metrics embedded inside renderData sections
+}
+
+// ── Render data table ─────────────────────────
+function renderData(summary) {
+  if (!summary?.sections) return;
+  let html = '<div class="fade">';
+  summary.sections.forEach(sec => {
+    html += `<div class="section-block"><div class="section-label">${sec.title}</div>`;
+    sec.items.forEach(item => {
+      let cls = 'row-val';
+      let labelCls = 'row-label';
+      if (item.calculated) cls += ' calc';
+      if (item.bold)       cls += ' bold';
+      if (item.label && item.label.startsWith('  ↳')) labelCls += ' sub';
+
+      if (item.highlight) {
+        if (item.label.toLowerCase().includes('variance')) {
+          const n = parseFloat(item.value) || 0;
+          cls += n !== 0 ? ' variance-warn' : ' variance-ok';
+        } else {
+          cls += ' warn';
         }
-      } catch {
-        statusBadge.className = 'status-badge offline';
-        statusText.textContent = 'Server Offline';
       }
-    }
 
-    checkHealth();
+      const dupBadge = item.label === 'Duplicates Removed' && parseInt(item.value) > 0
+        ? `<span class="dup-badge">⚠️ ${item.value} dup${item.value > 1 ? 's' : ''}</span>` : '';
 
-    // ── File selection ──
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) handleFile(file);
+      html += `<div class="row">
+        <span class="${labelCls}">${item.label.replace('  ↳', '↳')}</span>
+        <span class="${cls}">${dupBadge || item.value}</span>
+      </div>`;
     });
+    html += '</div>';
+  });
+  html += '</div>';
+  dataContent.innerHTML = html;
+}
 
-    // ── Drag & Drop ──
-    uploadZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      uploadZone.classList.add('dragover');
-    });
+// ── Render WhatsApp ───────────────────────────
+function renderWhatsApp(text, variance) {
+  const now  = new Date();
+  const t    = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true}).toLowerCase();
+  const varOk = variance === 0;
 
-    uploadZone.addEventListener('dragleave', () => {
-      uploadZone.classList.remove('dragover');
-    });
+  waContent.innerHTML = `
+    <div class="fade wa-panel">
+      <div class="wa-head">
+        <div class="wa-label">🟢 WhatsApp Preview</div>
+        <button class="btn btn-copy" id="copyBtn" onclick="copyReport()">📋 Copy</button>
+      </div>
+      <div class="wa-bubble">${escHtml(text)}</div>
+      <div class="wa-time">${t} ✓✓</div>
+      <div class="status-banner ${varOk ? 'ok' : 'warn'}">
+        ${varOk
+          ? '✅ Reconciliation matches — Variance is zero'
+          : `⚠️ Variance of ${variance} detected — review reconciliation images for missing or extra entries`}
+      </div>
+    </div>`;
+}
 
-    uploadZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      uploadZone.classList.remove('dragover');
-      const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) handleFile(file);
-    });
+// ── Copy to clipboard ─────────────────────────
+async function copyReport() {
+  if (!currentResult) return;
+  try { await navigator.clipboard.writeText(currentResult.whatsappReport); }
+  catch {
+    const ta = document.createElement('textarea');
+    ta.value = currentResult.whatsappReport;
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  }
+  const btn = document.getElementById('copyBtn');
+  if (!btn) return;
+  btn.textContent = '✅ Copied!'; btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = '📋 Copy'; btn.classList.remove('copied'); }, 2500);
+}
 
-    function handleFile(file) {
-      selectedFile = file;
-      hideError();
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        previewImg.src = e.target.result;
-        previewWrap.classList.add('visible');
-      };
-      reader.readAsDataURL(file);
-
-      generateBtn.disabled = false;
-    }
-
-    // ── Remove image ──
-    removeBtn.addEventListener('click', () => {
-      selectedFile = null;
-      fileInput.value = '';
-      previewImg.src = '';
-      previewWrap.classList.remove('visible');
-      generateBtn.disabled = true;
-      resetOutput();
-    });
-
-    // ── Generate Report ──
-    generateBtn.addEventListener('click', () => generateReport());
-
-    async function generateReport() {
-      if (!selectedFile) return;
-
-      hideError();
-      setLoading(true);
-      activateStep(1);
-
-      try {
-        const formData = new FormData();
-        formData.append('receipt', selectedFile);
-
-        activateStep(2);
-
-        const res = await fetch('/api/extract', {
-          method: 'POST',
-          body: formData
-        });
-
-        activateStep(3);
-        await delay(400);
-        activateStep(4);
-        await delay(400);
-
-        const result = await res.json();
-
-        if (!result.success) {
-          throw new Error(result.error || 'Unknown error occurred');
-        }
-
-        currentReport = result;
-        renderResults(result);
-
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    // ── Render Results ──
-    function renderResults(result) {
-      renderDataTable(result.summary);
-      renderWhatsApp(result.whatsappReport);
-    }
-
-    function renderDataTable(summary) {
-      if (!summary || !summary.sections) return;
-
-      let html = '<div class="fade-in">';
-
-      summary.sections.forEach(section => {
-        html += `<div class="data-section">
-          <div class="section-header">${section.title}</div>`;
-
-        section.items.forEach(item => {
-          const valClass = item.calculated ? 'data-value calculated'
-                         : item.highlight  ? 'data-value alert'
-                         : 'data-value';
-          html += `<div class="data-row">
-            <span class="data-label">${item.label}</span>
-            <span class="${valClass}">${item.value}</span>
-          </div>`;
-        });
-
-        html += '</div>';
-      });
-
-      html += '</div>';
-      dataContent.innerHTML = html;
-    }
-
-    function renderWhatsApp(reportText) {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
-
-      waContent.innerHTML = `
-        <div class="fade-in">
-          <div class="wa-header">
-            <div class="wa-title">
-              <span>🟢</span> WhatsApp Message Preview
-            </div>
-            <button class="btn btn-copy" id="copyBtn" onclick="copyReport()">
-              📋 Copy Message
-            </button>
-          </div>
-          <div class="wa-bubble" id="waBubble">${escapeHtml(reportText)}</div>
-          <div class="wa-timestamp">${timeStr} ✓✓</div>
-        </div>
-      `;
-    }
-
-    // ── Copy to clipboard ──
-    async function copyReport() {
-      if (!currentReport) return;
-
-      try {
-        await navigator.clipboard.writeText(currentReport.whatsappReport);
-        const btn = document.getElementById('copyBtn');
-        btn.textContent = '✅ Copied!';
-        btn.classList.add('copied');
-        setTimeout(() => {
-          btn.textContent = '📋 Copy Message';
-          btn.classList.remove('copied');
-        }, 2500);
-      } catch {
-        // Fallback
-        const ta = document.createElement('textarea');
-        ta.value = currentReport.whatsappReport;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-    }
-
-    // ── Loading steps ──
-    const steps = ['step1','step2','step3','step4'];
-
-    function activateStep(n) {
-      steps.forEach((id, i) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.classList.remove('active', 'done');
-        if (i + 1 < n) el.classList.add('done');
-        if (i + 1 === n) el.classList.add('active');
-      });
-    }
-
-    function setLoading(isLoading) {
-      generateBtn.disabled = isLoading;
-      loadingCard.style.display = isLoading ? 'block' : 'none';
-
-      if (isLoading) {
-        btnIcon.textContent = '⏳';
-        btnText.textContent = 'Processing…';
-      } else {
-        btnIcon.textContent = '⚡';
-        btnText.textContent = 'Generate Report';
-        resetSteps();
-      }
-    }
-
-    function resetSteps() {
-      steps.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.remove('active', 'done');
-      });
-    }
-
-    function resetOutput() {
-      currentReport = null;
-      dataContent.innerHTML = `<div class="empty-state"><div class="empty-icon">📄</div><p>Upload a receipt image to see extracted data</p></div>`;
-      waContent.innerHTML   = `<div class="empty-state"><div class="empty-icon">📱</div><p>Your formatted WhatsApp message will appear here</p></div>`;
-    }
-
-    function showError(msg) {
-      errorBox.textContent = '❌ ' + msg;
-      errorBox.classList.add('visible');
-    }
-
-    function hideError() {
-      errorBox.textContent = '';
-      errorBox.classList.remove('visible');
-    }
-
-    function escapeHtml(text) {
-      return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
-
-    function delay(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
-  </script>
+// ── Loading state ─────────────────────────────
+const sIds = ['s1','s2','s3','s4','s5'];
+function activateStep(n) {
+  sIds.forEach((id, i) => {
+    const el = document.getElementById(id); if (!el) return;
+    el.classList.remove('active','done');
+    if (i + 1 < n)  el.classList.add('done');
+    if (i + 1 === n) el.classList.add('active');
+  });
+}
+function setLoading(on) {
+  generateBtn.disabled = on;
+  loadingCard.style.display = on ? 'block' : 'none';
+  btnIcon.textContent = on ? '⏳' : '⚡';
+  btnText.textContent = on ? 'Processing…' : 'Generate Report';
+  if (!on) sIds.forEach(id => { const el = document.getElementById(id); if(el) el.classList.remove('active','done'); });
+}
+function showError(msg) { errorBox.textContent = '❌ ' + msg; errorBox.classList.add('visible'); }
+function hideError()    { errorBox.textContent = ''; errorBox.classList.remove('visible'); }
+function escHtml(t)     { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function delay(ms)      { return new Promise(r => setTimeout(r, ms)); }
+</script>
 </body>
 </html>

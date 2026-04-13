@@ -1,132 +1,155 @@
 /**
- * Formatter module: Converts extracted POS data to WhatsApp report format
- * 
- * Target WhatsApp Format:
- * Update
- * ```Address 1079 KAFD-SNB
- * 
- * | DATE :- 12-04-2026
- * 
- * • GROSS SALES : 2126
- * • ADO 173
- * • AO : 12.28
- * • CASH SALE :-0
- * 
- * POS Sales -2126
- * Marn POS Sales -2126
- * Variance :0
- * 
- * THANK YOU 🙏
- * @Mr Ibrahim DM @🇱🇰 محمد سفراز
+ * Formatter module
+ *
+ * Field mapping:
+ *   GROSS SALES    = total_sales         (X-report)
+ *   ADO            = total_orders        (X-report)
+ *   AO             = total_sales / total_orders  (calculated)
+ *   CASH SALE      = cash_amount         (X-report)
+ *   Marn POS Sales = card_amount         (X-report — card/digital payment total)
+ *   POS Sales      = reconciliation_total (summed from recon image(s), duplicates removed)
+ *   Variance       = POS Sales - Marn POS Sales  (recon total minus card sales from X-report)
  */
 
-function formatWhatsAppReport(data) {
-  const {
-    branch,
-    date,
-    total_sales,
-    total_orders,
-    average_order,
-    cash_amount,
-    marn_pos_sales,
-    variance
-  } = data;
+// ─────────────────────────────────────────────
+// WhatsApp Report Formatter — Enhanced Layout
+// ─────────────────────────────────────────────
+function formatWhatsAppReport(xData, reconData) {
+  const grossSales = formatNum(xData.total_sales);
+  const ado        = Math.round(xData.total_orders);
+  const ao         = parseFloat(xData.average_order).toFixed(2);
+  const cashSale   = formatNum(xData.cash_amount);
 
-  // Format the branch display (e.g. "Address 1079 KAFD-SNB")
-  // Clean up branch code for display
-  const branchDisplay = formatBranch(branch);
+  // MARN POS Sales = card_amount from X-report
+  const marnPos    = parseFloat(xData.marn_pos_sales || 0);
 
-  // Format numbers: show as integer if .0, else 2 decimal places
-  const grossSales = formatNumber(total_sales);
-  const ado = Math.round(total_orders);
-  const ao = parseFloat(average_order).toFixed(2);
-  const cashSale = formatNumber(cash_amount);
-  const posSales = formatNumber(total_sales);
-  const marnSales = formatNumber(marn_pos_sales);
-  const varianceDisplay = formatNumber(parseFloat(variance));
+  // POS Sales = total from reconciliation image(s), duplicates already removed
+  const posSales   = parseFloat(reconData.reconciliation_total || 0);
 
-  const report = `Update
-\`\`\`Address ${branchDisplay}
+  // Variance = POS Sales (recon) − MARN POS Sales (card from X-report)
+  const variance   = parseFloat((posSales - marnPos).toFixed(2));
 
-| DATE :- ${date}
+  const marnStr    = formatNum(marnPos);
+  const posStr     = formatNum(posSales);
+  const varAbs     = formatNum(Math.abs(variance));
+  const varSign    = variance > 0 ? '+' : variance < 0 ? '-' : '';
+  const varFlag    = variance === 0 ? '✅ OK' : '⚠️ CHECK';
 
-• GROSS SALES : ${grossSales}
-• ADO ${ado}
-• AO : ${ao}
-• CASH SALE :-${cashSale}
+  // Duplicate info
+  const dupLine = reconData.duplicate_count > 0
+    ? `\n⚠️  Duplicates Removed : ${reconData.duplicate_count}`
+    : '';
 
-POS Sales -${posSales}
-Marn POS Sales -${marnSales}
-Variance :${varianceDisplay}
+  // Recon image breakdown (if more than 1 image)
+  let reconBreakdown = '';
+  if ((reconData.images || []).length > 1) {
+    reconBreakdown = '\n';
+    reconData.images.forEach((img, i) => {
+      const label = (img.source_label || `Recon ${i + 1}`).slice(0, 18).padEnd(18);
+      reconBreakdown += `  ${i + 1}. ${label}: ${formatNum(img.pos_sales)}\n`;
+    });
+  }
 
-THANK YOU 🙏
-@Mr Ibrahim DM @🇱🇰 محمد سفراز\`\`\``;
+  const report =
+`*📊 DAILY SALES UPDATE*
+\`\`\`
+╔══════════════════════════════╗
+  🏪  ${(xData.branch || 'N/A').padEnd(26)}
+  📅  ${(xData.date   || 'N/A').padEnd(26)}
+╚══════════════════════════════╝
+
+▌ SALES SUMMARY
+  💰 Gross Sales    : ${String(grossSales).padStart(10)}
+  📦 ADO            : ${String(ado).padStart(10)}
+  📊 Avg Order (AO) : ${String(ao).padStart(10)}
+  💵 Cash Sale      : ${String(cashSale).padStart(10)}
+
+▌ POS RECONCILIATION${reconBreakdown}
+  🏧 MARN POS Sales : ${String(marnStr).padStart(10)}
+  📋 POS Sales      : ${String(posStr).padStart(10)}
+  ─────────────────────────────
+  📉 Variance       : ${String(varSign + varAbs).padStart(10)}  ${varFlag}${dupLine}
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+\`\`\`
+_Thank you_ 🙏
+@Mr Ibrahim  DM @🇱🇰 محمد سفراز`;
 
   return report;
 }
 
-function formatBranch(branch) {
-  if (!branch) return 'UNKNOWN BRANCH';
-  // Remove common prefixes if present
-  return branch.trim();
-}
+// ─────────────────────────────────────────────
+// Summary for UI data table
+// ─────────────────────────────────────────────
+function generateSummary(xData, reconData) {
+  const marnPos  = parseFloat(xData.marn_pos_sales || 0);
+  const posSales = parseFloat(reconData.reconciliation_total || 0);
+  const variance = parseFloat((posSales - marnPos).toFixed(2));
 
-function formatNumber(num) {
-  const n = parseFloat(num) || 0;
-  // If it's a whole number, show without decimals
-  if (n % 1 === 0) {
-    return n.toString();
-  }
-  // Otherwise show 2 decimal places
-  return n.toFixed(2);
-}
+  // Per-image breakdown for Reconciliation section
+  const reconImageItems = (reconData.images || []).map((img, i) => ({
+    label:     `  ↳ ${img.source_label || `Image ${i + 1}`}`,
+    value:     formatNum(img.pos_sales || 0),
+    highlight: false
+  }));
 
-/**
- * Generate a structured summary object for the UI display table
- */
-function generateSummary(data) {
   return {
     sections: [
       {
-        title: 'Branch & Date',
+        title: '📍 Branch & Session',
         items: [
-          { label: 'Branch', value: data.branch || 'N/A' },
-          { label: 'Date', value: data.date || 'N/A' },
-          { label: 'Time', value: data.time || 'N/A' },
-          { label: 'Cashier', value: data.cashier || 'N/A' }
+          { label: 'Branch',   value: xData.branch  || 'N/A' },
+          { label: 'Date',     value: xData.date    || 'N/A' },
+          { label: 'Time',     value: xData.time    || 'N/A' },
+          { label: 'Cashier',  value: xData.cashier || 'N/A' }
         ]
       },
       {
-        title: 'Sales Metrics',
+        title: '💰 Sales Metrics (X-Report)',
         items: [
-          { label: 'Gross Sales', value: formatNumber(data.total_sales) },
-          { label: 'ADO (Total Orders)', value: Math.round(data.total_orders).toString() },
-          { label: 'AO (Avg Order Value)', value: `${parseFloat(data.average_order).toFixed(2)}`, calculated: true },
-          { label: 'Cash Sales', value: formatNumber(data.cash_amount) },
-          { label: 'Card Sales', value: formatNumber(data.card_amount) }
+          { label: 'Gross Sales',          value: formatNum(xData.total_sales)  },
+          { label: 'ADO (Total Orders)',   value: Math.round(xData.total_orders).toString() },
+          { label: 'AO (Avg Order)',       value: parseFloat(xData.average_order).toFixed(2), calculated: true },
+          { label: 'Cash Sales',           value: formatNum(xData.cash_amount)  },
+          { label: 'Card Sales (MARN POS)',value: formatNum(xData.card_amount)  },
+          { label: 'Net Sales',            value: formatNum(xData.net_sales)    },
+          { label: 'Sales Tax',            value: formatNum(xData.sales_tax)    }
         ]
       },
       {
-        title: 'POS Reconciliation',
+        title: '📋 Reconciliation (POS Sales)',
         items: [
-          { label: 'POS Sales', value: formatNumber(data.total_sales) },
-          { label: 'Marn POS Sales', value: formatNumber(data.marn_pos_sales) },
-          { label: 'Variance', value: formatNumber(data.variance), highlight: parseFloat(data.variance) !== 0 }
+          ...reconImageItems,
+          { label: 'Duplicates Removed',   value: reconData.duplicate_count.toString(), highlight: reconData.duplicate_count > 0 },
+          { label: 'POS Sales Total',      value: formatNum(posSales), bold: true }
         ]
       },
       {
-        title: 'Other Details',
+        title: '🔁 Variance Analysis',
         items: [
-          { label: 'Net Sales', value: formatNumber(data.net_sales) },
-          { label: 'Sales Tax', value: formatNumber(data.sales_tax) },
-          { label: 'Total Discount', value: formatNumber(data.total_discount) },
-          { label: 'Total Refund', value: formatNumber(data.total_refund) },
-          { label: 'Total Void', value: formatNumber(data.total_void) },
-          { label: 'Complimentary', value: formatNumber(data.complimentary) }
+          { label: 'MARN POS Sales (Card)',value: formatNum(marnPos) },
+          { label: 'POS Sales (Recon)',    value: formatNum(posSales) },
+          { label: 'Variance',            value: formatNum(variance), highlight: variance !== 0, bold: true }
+        ]
+      },
+      {
+        title: '📊 Other Details',
+        items: [
+          { label: 'Total Discount',  value: formatNum(xData.total_discount) },
+          { label: 'Total Refund',    value: formatNum(xData.total_refund)   },
+          { label: 'Total Void',      value: formatNum(xData.total_void)     },
+          { label: 'Complimentary',   value: formatNum(xData.complimentary)  }
         ]
       }
     ]
   };
+}
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+function formatNum(num) {
+  const n = parseFloat(num) || 0;
+  return n % 1 === 0 ? n.toLocaleString() : n.toFixed(2);
 }
 
 module.exports = { formatWhatsAppReport, generateSummary };

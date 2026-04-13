@@ -1,154 +1,165 @@
 require('dotenv').config();
 const express = require('express');
-const multer = require('multer');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-const { extractFromImage } = require('./extractor');
-const { formatWhatsAppReport, generateSummary } = require('./formatter');
+const multer  = require('multer');
+const cors    = require('cors');
+const path    = require('path');
+const fs      = require('fs');
+const os      = require('os');
+const { extractFromImage, extractReconciliationData } = require('./extractor');
+const { formatWhatsAppReport, generateSummary }       = require('./formatter');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// ── Middleware ────────────────────────────────
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Configure multer for image uploads
+// ── Multer: receipt (1) + reconciliation (up to 5) ───
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
+    const dir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'receipt-' + uniqueSuffix + path.extname(file.originalname));
+    const suffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `${file.fieldname}-${suffix}${path.extname(file.originalname)}`);
   }
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Only image files are allowed (JPG, PNG, GIF, WEBP)'), false);
-  }
+  const ok = ['image/jpeg','image/png','image/gif','image/webp'];
+  ok.includes(file.mimetype)
+    ? cb(null, true)
+    : cb(new Error('Only image files are allowed (JPG PNG GIF WEBP)'), false);
 };
 
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-});
+  limits: { fileSize: 10 * 1024 * 1024 }
+}).fields([
+  { name: 'receipt',        maxCount: 1 },
+  { name: 'reconciliation', maxCount: 5 }
+]);
 
-// Health check
+// ── Helper: delete an array of file paths ────
+function cleanupFiles(paths) {
+  (paths || []).forEach(p => {
+    if (fs.existsSync(p)) fs.unlink(p, () => {});
+  });
+}
+
+// ── Health check ─────────────────────────────
 app.get('/api/health', (req, res) => {
-  const apiKeySet = !!process.env.ANTHROPIC_API_KEY && 
-                    process.env.ANTHROPIC_API_KEY !== 'your_claude_api_key_here';
-  res.json({ 
-    status: 'ok', 
-    apiKeyConfigured: apiKeySet,
-    message: apiKeySet ? 'System ready' : 'Please set your ANTHROPIC_API_KEY in the .env file'
+  const configured = !!process.env.ANTHROPIC_API_KEY &&
+                     process.env.ANTHROPIC_API_KEY !== 'your_claude_api_key_here';
+  res.json({
+    status: 'ok',
+    apiKeyConfigured: configured,
+    message: configured ? 'System ready' : 'Set ANTHROPIC_API_KEY in .env'
   });
 });
 
-// Main extraction endpoint
-app.post('/api/extract', upload.single('receipt'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'No image file uploaded. Please select a receipt image.' 
-    });
-  }
-
-  const imagePath = req.file.path;
-
-  try {
-    console.log(`\n[Server] Processing receipt: ${req.file.originalname}`);
-    console.log(`[Server] Saved to: ${imagePath}`);
-
-    // Extract data using Claude Vision
-    const extractedData = await extractFromImage(imagePath);
-
-    // Format WhatsApp report
-    const whatsappReport = formatWhatsAppReport(extractedData);
-
-    // Generate UI summary
-    const summary = generateSummary(extractedData);
-
-    // Clean up uploaded file after processing
-    fs.unlink(imagePath, (err) => {
-      if (err) console.warn('[Server] Could not delete temp file:', err.message);
-    });
-
-    console.log('[Server] Report generated successfully');
-
-    res.json({
-      success: true,
-      data: extractedData,
-      summary,
-      whatsappReport
-    });
-
-  } catch (error) {
-    console.error('[Server] Processing error:', error.message);
-
-    // Clean up uploaded file on error
-    if (fs.existsSync(imagePath)) {
-      fs.unlink(imagePath, () => {});
+// ── Main extraction endpoint ─────────────────
+app.post('/api/extract', (req, res) => {
+  upload(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, error: err.message });
     }
 
-    // Check for API key issues
-    if (error.message.includes('API key') || error.status === 401) {
-      return res.status(401).json({
+    const receiptFiles = req.files?.receipt        || [];
+    const reconFiles   = req.files?.reconciliation || [];
+
+    if (receiptFiles.length === 0) {
+      return res.status(400).json({
         success: false,
-        error: 'Invalid or missing Claude API key. Please check your .env file.'
+        error: 'No X-report receipt image uploaded.'
       });
     }
 
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to process the receipt image. Please try again.'
-    });
-  }
+    const receiptPath = receiptFiles[0].path;
+    const reconPaths  = reconFiles.map(f => f.path);
+    const allPaths    = [receiptPath, ...reconPaths];
+
+    try {
+      console.log(`\n[Server] Receipt: ${receiptFiles[0].originalname}`);
+      console.log(`[Server] Reconciliation images: ${reconFiles.length}`);
+
+      // 1. Extract X-report data
+      const xData = await extractFromImage(receiptPath);
+
+      // 2. Extract & reconcile recon images
+      const reconData = await extractReconciliationData(reconPaths);
+
+      // 3. Calculate variance
+      const variance = parseFloat(
+        (reconData.reconciliation_total - xData.marn_pos_sales).toFixed(2)
+      );
+
+      // 4. Format WhatsApp report
+      const whatsappReport = formatWhatsAppReport(xData, reconData);
+
+      // 5. Generate UI summary
+      const summary = generateSummary(xData, reconData);
+
+      // 6. Cleanup temp files
+      cleanupFiles(allPaths);
+
+      console.log(`[Server] Done — Variance: ${variance}`);
+
+      res.json({
+        success: true,
+        xData,
+        reconData,
+        variance,
+        summary,
+        whatsappReport
+      });
+
+    } catch (error) {
+      console.error('[Server] Error:', error.message);
+      cleanupFiles(allPaths);
+
+      if (error.status === 401 || error.message.includes('API key')) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid or missing Claude API key. Check your .env file.'
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to process image. Please try again.'
+      });
+    }
+  });
 });
 
-// Start server
-const os = require('os');
-
+// ── Network IP helper ─────────────────────────
 function getLocalIP() {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
-      }
+  for (const ifaces of Object.values(os.networkInterfaces())) {
+    for (const i of ifaces) {
+      if (i.family === 'IPv4' && !i.internal) return i.address;
     }
   }
   return 'unknown';
 }
 
+// ── Start ─────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
-  const localIP = getLocalIP();
+  const ip = getLocalIP();
   console.log('\n╔════════════════════════════════════════╗');
   console.log('║     📊 Report Agent - Server Ready      ║');
   console.log('╚════════════════════════════════════════╝');
   console.log(`\n💻 PC Browser:    http://localhost:${PORT}`);
-  console.log(`📱 Phone/Tablet:  http://${localIP}:${PORT}`);
-  
-  const apiKeySet = !!process.env.ANTHROPIC_API_KEY && 
-                    process.env.ANTHROPIC_API_KEY !== 'your_claude_api_key_here';
-  
-  if (apiKeySet) {
-    console.log('\n✅ Claude API key: Configured');
-  } else {
-    console.log('\n⚠️  Claude API key: NOT SET — Open .env and add your key!');
-  }
-  
+  console.log(`📱 Phone/Tablet:  http://${ip}:${PORT}`);
+
+  const ok = !!process.env.ANTHROPIC_API_KEY &&
+             process.env.ANTHROPIC_API_KEY !== 'your_claude_api_key_here';
+  console.log(ok ? '\n✅ Claude API key: Configured' : '\n⚠️  Claude API key: NOT SET');
   console.log('\n📌 Both devices must be on the same WiFi');
   console.log('📌 Press Ctrl+C to stop the server\n');
 });
