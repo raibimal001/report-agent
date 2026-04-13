@@ -120,19 +120,19 @@ function generateSummary(xData, reconData) {
         ]
       },
       {
-        title: '📋 POS Reconciliation',
+        title: '📋 Reconciliation',
         items: [
           ...reconImageItems,
           { label: 'Duplicates Removed', value: reconData.duplicate_count.toString(), highlight: reconData.duplicate_count > 0 },
-          { label: 'POS Sales Total',    value: formatNum(posSales), bold: true }
+          { label: 'Reconciliation Total', value: formatNum(posSales), bold: true }
         ]
       },
       {
         title: '🔁 Variance Analysis',
         items: [
-          { label: 'MARN POS Sales (Card)', value: formatNum(marnPos) },
-          { label: 'POS Sales (Recon)',     value: formatNum(posSales) },
-          { label: 'Variance',              value: formatNum(variance), highlight: variance !== 0, bold: true }
+          { label: 'Card Sales',           value: formatNum(marnPos) },
+          { label: 'Reconciliation Sales', value: formatNum(posSales) },
+          { label: 'Variance',             value: formatNum(variance), highlight: variance !== 0, bold: true }
         ]
       }
     ]
