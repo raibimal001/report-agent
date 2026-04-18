@@ -41,35 +41,44 @@ Rules:
 - coupon is the total value of coupons/vouchers redeemed, not a count`;
 
 // ─────────────────────────────────────────────
-// RECONCILIATION EXTRACTION
+// RECONCILIATION EXTRACTION — COMPREHENSIVE
 // ─────────────────────────────────────────────
-const RECONCILIATION_PROMPT = `You are an expert at reading POS reconciliation reports, settlement reports, or card transaction summaries.
-Analyze this image carefully. Your goal is to extract the TOTAL POS SALES value shown in this reconciliation document.
+const RECONCILIATION_PROMPT = `You are an expert at reading POS reconciliation/settlement receipts and card terminal reports.
+This image may show one or more settlement sections side by side (e.g. two columns or two receipts photographed together).
 
-Return ONLY a valid JSON object — no markdown, no code blocks, no extra text.
+Your task:
+1. Find EVERY payment method section in the image (Mada, Visa, Credit, Debit, Maestro, STC Pay, Apple Pay, UnionPay, Discover, GCCNET, AMEX, etc.)
+2. For EACH payment method section, extract the transaction count and total amount
+3. Some sections may say "No Transactions" — record them with count=0 and amount=0
+4. Find the overall document total if printed (often labeled "NET", "Grand Total", "Total", or similar)
+5. Extract document metadata (date, reference/batch number, branch/terminal)
+
+Return ONLY a valid JSON object — no markdown, no code blocks, no extra text:
 
 {
-  "source_label": "a short label describing what this document is (e.g. 'POS Reconciliation Report', 'Card Settlement', 'Daily Recon')",
-  "pos_sales": the total POS sales amount shown in this document as a number — look for fields labeled 'POS Sales', 'Total Sales', 'Net Sales', 'Settlement Amount', 'Total Amount', 'Grand Total', or similar. This is the main total of the reconciliation. If multiple totals exist, pick the one most clearly labeled as the overall POS or card total,
-  "reference": "any reference number, batch number, or document ID shown (null if not present)",
-  "date": "date shown on this document in any format (null if not present)",
-  "individual_transactions": [
+  "source_label": "brief description of document type (e.g. 'POS Settlement Report', 'Card Recon Receipt')",
+  "branch": "branch name or terminal ID if visible (null if not)",
+  "date": "date shown on this document in DD/MM/YYYY or as printed (null if not present)",
+  "reference": "batch number, reference number, or document ID (null if not present)",
+  "payment_rows": [
     {
-      "id": "transaction ID or reference if visible, else null",
-      "amount": the transaction amount as a number,
-      "time": "time if visible, else null",
-      "description": "description or label if visible, else null"
+      "method": "payment method name (e.g. 'Mada', 'Visa', 'Credit', 'Debit', 'Maestro', 'STC Pay', 'Apple Pay')",
+      "count": transaction count as a number (0 if no transactions or not shown),
+      "amount": total amount for this method as a number (0 if no transactions),
+      "has_transactions": true if this method has actual transactions, false if 'No Transactions'
     }
   ],
-  "reported_total": the total/grand total stated in the document as a number (same as pos_sales if only one total exists, 0 if not shown)
+  "reported_total": the grand total / net total stated in the document as a number (0 if not explicitly printed),
+  "anomaly_notes": "any observations about suspicious values, mismatched totals, or unusual entries (null if everything looks normal)"
 }
 
 Rules:
-- pos_sales is the MOST CRITICAL field — this is what will be used as the reconciliation amount
-- If the document shows only a grand total (no individual breakdown), set pos_sales to that total and leave individual_transactions as an empty array
-- If individual transactions are listed, extract them AND set pos_sales to the document's stated total (not a sum you calculate)
-- All amounts must be numbers (no currency symbols)
-- Be thorough and precise — accuracy here determines the variance calculation`;
+- Extract EVERY payment method you see, even those with 0 transactions
+- payment_rows MUST be a complete list — do not skip any method
+- amounts are numbers only (no currency symbols, no commas)
+- If the image shows two separate receipt sections next to each other, treat ALL rows from both sections as part of one unified list (they are from the same terminal session)
+- reported_total is what the document itself states as its total — if not found, use 0
+- Be very thorough — this data feeds a financial reconciliation system`;
 
 // ─────────────────────────────────────────────
 // HELPER: Load image as base64
@@ -99,7 +108,7 @@ async function callClaude(imagePath, prompt) {
 
   const response = await client.messages.create({
     model: 'claude-opus-4-5',
-    max_tokens: 1500,
+    max_tokens: 2000,
     messages: [{
       role: 'user',
       content: [
@@ -169,10 +178,12 @@ async function extractReconciliationData(imagePaths) {
       reconciliation_total: 0,
       pos_sales_total: 0,
       images: [],
+      unique_images: [],
+      duplicate_images: [],
       duplicates: [],
       duplicate_count: 0,
-      unique_transactions: [],
-      all_transactions: []
+      all_payment_rows: [],
+      anomalies: []
     };
   }
 
@@ -180,126 +191,134 @@ async function extractReconciliationData(imagePaths) {
 
   const allResults = [];
 
-  // Extract from each image
+  // ── Extract from each image ─────────────────────────────────────────────
   for (let i = 0; i < imagePaths.length; i++) {
     const imgPath = imagePaths[i];
     console.log(`[Extractor] Recon image ${i + 1}/${imagePaths.length}: ${path.basename(imgPath)}`);
     try {
       const result = await callClaude(imgPath, RECONCILIATION_PROMPT);
 
-      // Extract the primary POS Sales value from this image
-      const posSales = parseFloat(result.pos_sales) || parseFloat(result.reported_total) || 0;
-
-      // Normalize any individual transactions listed
-      const transactions = (result.individual_transactions || []).map((t, idx) => ({
-        image_index:  i,
-        image_label:  result.source_label || `Image ${i + 1}`,
-        tx_index:     idx,
-        id:           t.id   || null,
-        amount:       parseFloat(t.amount) || 0,
-        time:         t.time || null,
-        description:  t.description || null
+      // Normalize payment rows
+      const paymentRows = (result.payment_rows || []).map(r => ({
+        image_index:      i,
+        method:           r.method || 'Unknown',
+        count:            parseInt(r.count)  || 0,
+        amount:           parseFloat(r.amount) || 0,
+        has_transactions: r.has_transactions !== false
       }));
+
+      // Compute total from rows (sum of amounts with actual transactions)
+      const computedTotal = paymentRows
+        .filter(r => r.has_transactions && r.amount > 0)
+        .reduce((sum, r) => sum + r.amount, 0);
+
+      const reportedTotal = parseFloat(result.reported_total) || 0;
+
+      // Anomaly: computed vs reported mismatch (allow 1 SAR tolerance for rounding)
+      const anomaly = reportedTotal > 0 && Math.abs(computedTotal - reportedTotal) > 1.0;
+      const anomalyNote = anomaly
+        ? `Computed sum (${computedTotal.toFixed(2)}) differs from reported total (${reportedTotal.toFixed(2)})`
+        : (result.anomaly_notes || null);
 
       allResults.push({
         image_index:    i,
         source_label:   result.source_label || `Reconciliation ${i + 1}`,
-        pos_sales:      posSales,
-        reference:      result.reference    || null,
+        branch:         result.branch       || null,
         date:           result.date         || null,
-        transactions,
-        reported_total: parseFloat(result.reported_total) || posSales
+        reference:      result.reference    || null,
+        payment_rows:   paymentRows,
+        computed_total: parseFloat(computedTotal.toFixed(2)),
+        reported_total: reportedTotal,
+        // Use reported_total if trustworthy (close to computed), else use computed
+        effective_total: (reportedTotal > 0 && !anomaly) ? reportedTotal : parseFloat(computedTotal.toFixed(2)),
+        anomaly:        anomaly,
+        anomaly_note:   anomalyNote,
+        error:          null
       });
+
+      console.log(
+        `[Extractor] Image ${i + 1} — Rows: ${paymentRows.length}, ` +
+        `Computed: ${computedTotal.toFixed(2)}, Reported: ${reportedTotal}` +
+        (anomaly ? ' ⚠️ ANOMALY' : ' ✓')
+      );
 
     } catch (err) {
       console.error(`[Extractor] Failed on recon image ${i + 1}:`, err.message);
       allResults.push({
         image_index:    i,
         source_label:   `Image ${i + 1}`,
-        pos_sales:      0,
-        reference:      null,
+        branch:         null,
         date:           null,
-        transactions:   [],
+        reference:      null,
+        payment_rows:   [],
+        computed_total: 0,
         reported_total: 0,
+        effective_total: 0,
+        anomaly:        false,
+        anomaly_note:   null,
         error:          err.message
       });
     }
   }
 
-  // ── Duplicate detection on POS Sales values across images ────────────────
-  // If two images report the exact same POS sales amount AND have matching
-  // reference/date clues, treat the second as a duplicate.
-  // Strategy: deduplicate on {pos_sales + reference} or {pos_sales + date}
-  const seenPosSales = new Map();
-  const uniqueImages = [];
+  // ── Duplicate detection across images ───────────────────────────────────
+  // Two images are duplicates if they share the same effective_total AND (same reference OR same date)
+  const seenKeys = new Map();
+  const uniqueImages    = [];
   const duplicateImages = [];
 
   for (const img of allResults) {
-    // Build a dedup key
     let key;
-    if (img.reference && img.reference !== null) {
+    if (img.reference) {
       key = `ref:${String(img.reference).trim().toLowerCase()}`;
-    } else if (img.date && img.pos_sales > 0) {
-      key = `date:${img.date}|amt:${img.pos_sales}`;
+    } else if (img.date && img.effective_total > 0) {
+      key = `date:${img.date}|amt:${img.effective_total.toFixed(2)}`;
     } else {
-      // No good identifier — treat as unique (different recon pages)
-      key = `img:${img.image_index}|amt:${img.pos_sales}`;
+      // No good dedup identifier — treat each as unique
+      key = `img:${img.image_index}|amt:${img.effective_total.toFixed(2)}`;
     }
 
-    if (seenPosSales.has(key)) {
+    if (seenKeys.has(key)) {
       duplicateImages.push({ ...img, duplicate_of: key });
-      console.log(`[Extractor] Duplicate recon image detected: Image ${img.image_index + 1} (key: ${key})`);
+      console.log(`[Extractor] Duplicate image detected: Image ${img.image_index + 1} (key: ${key})`);
     } else {
-      seenPosSales.set(key, img);
+      seenKeys.set(key, img);
       uniqueImages.push(img);
     }
   }
 
-  // Sum POS Sales from unique images only
-  const pos_sales_total = uniqueImages.reduce((sum, img) => sum + img.pos_sales, 0);
+  // ── Final totals ────────────────────────────────────────────────────────
+  const reconciliationTotal = uniqueImages.reduce((sum, img) => sum + img.effective_total, 0);
 
-  // ── Also combine individual transactions (for UI detail view) ──────────
-  const allTransactions = allResults.flatMap(r => r.transactions);
+  // Aggregate all payment rows from unique images (for display)
+  const allPaymentRows = uniqueImages.flatMap(img =>
+    img.payment_rows.map(r => ({ ...r, image_label: img.source_label }))
+  );
 
-  // Dedup individual transactions
-  const seenTx = new Map();
-  const uniqueTx = [];
-  const duplicateTx = [];
+  // Collect anomalies
+  const anomalies = allResults
+    .filter(img => img.anomaly || img.anomaly_note)
+    .map(img => ({
+      image_index: img.image_index,
+      image_label: img.source_label,
+      note: img.anomaly_note
+    }));
 
-  for (const tx of allTransactions) {
-    let key;
-    if (tx.id) {
-      key = `id:${tx.id.toString().trim()}`;
-    } else if (tx.time) {
-      key = `amt:${tx.amount}|time:${tx.time}`;
-    } else {
-      key = `img:${tx.image_index}|idx:${tx.tx_index}|amt:${tx.amount}`;
-    }
-
-    if (seenTx.has(key)) {
-      duplicateTx.push({ ...tx, duplicate_of: key });
-    } else {
-      seenTx.set(key, tx);
-      uniqueTx.push(tx);
-    }
-  }
-
-  // Combined duplicate count = duplicate images + duplicate transactions
-  const duplicateCount = duplicateImages.length + duplicateTx.length;
-
-  console.log(`[Extractor] Recon — Images: ${allResults.length}, Unique: ${uniqueImages.length}, Duplicate images: ${duplicateImages.length}`);
-  console.log(`[Extractor] Recon — POS Sales Total (unique): ${pos_sales_total.toFixed(2)}`);
+  console.log(
+    `[Extractor] Recon — Images: ${allResults.length}, Unique: ${uniqueImages.length}, ` +
+    `Duplicates: ${duplicateImages.length}, Total: ${reconciliationTotal.toFixed(2)}`
+  );
 
   return {
-    reconciliation_total: parseFloat(pos_sales_total.toFixed(2)),
-    pos_sales_total:      parseFloat(pos_sales_total.toFixed(2)),
+    reconciliation_total: parseFloat(reconciliationTotal.toFixed(2)),
+    pos_sales_total:      parseFloat(reconciliationTotal.toFixed(2)),
     images:               allResults,
     unique_images:        uniqueImages,
     duplicate_images:     duplicateImages,
-    all_transactions:     allTransactions,
-    unique_transactions:  uniqueTx,
-    duplicates:           [...duplicateImages, ...duplicateTx],
-    duplicate_count:      duplicateCount
+    duplicates:           duplicateImages,
+    duplicate_count:      duplicateImages.length,
+    all_payment_rows:     allPaymentRows,
+    anomalies
   };
 }
 

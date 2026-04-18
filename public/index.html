@@ -245,6 +245,14 @@
       border:1px solid rgba(251,191,36,.3);margin-left:6px;letter-spacing:.03em;
     }
 
+    /* anomaly badge */
+    .anomaly-badge{
+      display:inline-flex;align-items:center;gap:4px;
+      padding:2px 9px;border-radius:100px;font-size:10px;font-weight:700;
+      background:rgba(248,113,113,.1);color:var(--red);
+      border:1px solid rgba(248,113,113,.3);margin-left:6px;letter-spacing:.03em;
+    }
+
     /* ── WhatsApp panel ── */
     .wa-panel{
       background:var(--wabg);
@@ -308,6 +316,27 @@
     .mc-blue  .mc-val{color:var(--accent)}
     .mc-yellow .mc-val{color:var(--yellow)}
 
+    /* ── Icon buttons in report (date / coupon / pos) ── */
+    .report-icon-btn{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;
+      background:rgba(79,144,255,.08);border:1px solid rgba(79,144,255,.18);
+      color:var(--accent);cursor:default;white-space:nowrap;letter-spacing:.03em;
+      transition:background .2s;
+    }
+    .report-icon-btn.date-btn{
+      background:rgba(34,211,238,.07);border-color:rgba(34,211,238,.2);color:var(--cyan);
+    }
+    .report-icon-btn.coupon-btn{
+      background:rgba(251,191,36,.07);border-color:rgba(251,191,36,.2);color:var(--yellow);
+    }
+    .report-icon-btn.pos-btn{
+      background:rgba(52,211,153,.07);border-color:rgba(52,211,153,.2);color:var(--green);
+    }
+
+    /* row with icon button label */
+    .row-label-wrap{display:flex;align-items:center;gap:8px}
+
     @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
     .fade{animation:fadeUp .45s ease both}
 
@@ -365,11 +394,12 @@
       <div class="upload-zone recon-zone" id="reconZone">
         <span class="uz-icon">📋</span>
         <h3>Drop Reconciliation Image(s)</h3>
-        <p>Upload one or more — duplicates auto-detected</p>
+        <p>Upload one or more — all values extracted &amp; verified</p>
         <input type="file" id="reconInput" accept="image/*" multiple/>
       </div>
       <div class="zone-info">
         <span class="pill">MULTIPLE OK</span>
+        <span class="pill">ALL ROWS READ</span>
         <span class="pill">DEDUP ✓</span>
         <span class="pill">≤ 5 IMAGES</span>
       </div>
@@ -394,8 +424,8 @@
         <div class="steps">
           <div class="step-item" id="s1">📤 Uploading images</div>
           <div class="step-item" id="s2">🤖 Reading sales receipt</div>
-          <div class="step-item" id="s3">📋 Reading reconciliation</div>
-          <div class="step-item" id="s4">🔍 Checking for duplicates</div>
+          <div class="step-item" id="s3">📋 Reading all reconciliation values</div>
+          <div class="step-item" id="s4">🔍 Checking duplicates &amp; anomalies</div>
           <div class="step-item" id="s5">📱 Formatting report</div>
         </div>
       </div>
@@ -570,7 +600,7 @@ async function generateReport() {
     if (!result.success) throw new Error(result.error || 'Unknown error');
 
     currentResult = result;
-    renderSummary(result.summary);
+    renderSummary(result.summary, result.xData);
     renderWhatsApp(result.whatsappReport, result.variance);
 
   } catch(err) {
@@ -581,7 +611,7 @@ async function generateReport() {
 }
 
 // ── Render summary card ───────────────────────
-function renderSummary(summary) {
+function renderSummary(summary, xData) {
   if (!summary?.sections) return;
   let html = '<div class="fade">';
   summary.sections.forEach(sec => {
@@ -603,11 +633,52 @@ function renderSummary(summary) {
       }
 
       const dupBadge = item.label === 'Duplicates Removed' && parseInt(item.value) > 0
-        ? `<span class="dup-badge">⚠️ ${item.value} dup${item.value > 1 ? 's' : ''}</span>` : '';
+        ? `<span class="dup-badge">⚠️ ${item.value} dup${parseInt(item.value) > 1 ? 's' : ''}</span>` : '';
+
+      const anomalyBadge = item.label && item.label.startsWith('⚠️ Anomaly')
+        ? `<span class="anomaly-badge">⚠️ Mismatch</span>` : '';
+
+      // ── Icon buttons for special rows ───────────────────────────────
+      // a) Date row → show calendar icon with auto-date from report
+      let labelHtml = item.label;
+      if (item.label === 'Date' && xData) {
+        const reportDate = xData.date || 'N/A';
+        labelHtml = `<span class="row-label-wrap">
+          <span class="report-icon-btn date-btn">📅 ${escHtml(reportDate)}</span>
+        </span>`;
+      }
+      // b) Coupon row → always show with 🎟️ icon
+      else if (item.label && item.label.includes('Coupon')) {
+        labelHtml = `<span class="row-label-wrap">
+          <span class="report-icon-btn coupon-btn">🎟️ Coupon</span>
+        </span>`;
+      }
+      // c) MARN POS Sales → 📋 icon (switched)
+      else if (item.label && item.label.includes('MARN POS')) {
+        labelHtml = `<span class="row-label-wrap">
+          <span class="report-icon-btn">📋 MARN POS Sales</span>
+        </span>`;
+      }
+      // d) POS Sales (Recon) → 🏧 icon (switched)
+      else if (item.label && item.label.includes('POS Sales')) {
+        labelHtml = `<span class="row-label-wrap">
+          <span class="report-icon-btn pos-btn">🏧 POS Sales (Recon)</span>
+        </span>`;
+      }
+      else {
+        labelHtml = `<span class="${labelCls}">${item.label.replace('  ↳', '↳')}</span>`;
+      }
+
+      // If label was replaced with html widget, don't double-wrap
+      const labelFinal = (item.label === 'Date' || (item.label && item.label.includes('Coupon')) ||
+                          (item.label && item.label.includes('MARN POS')) ||
+                          (item.label && item.label.includes('POS Sales')))
+        ? labelHtml
+        : `<span class="${labelCls}">${item.label.replace('  ↳', '↳')}</span>`;
 
       html += `<div class="row">
-        <span class="${labelCls}">${item.label.replace('  ↳', '↳')}</span>
-        <span class="${cls}">${dupBadge || item.value}</span>
+        ${labelFinal}
+        <span class="${cls}">${dupBadge || anomalyBadge || item.value}</span>
       </div>`;
     });
     html += '</div>';
